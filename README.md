@@ -5,7 +5,7 @@
 > [!Important]
 > Introduzca a continuación su nombre y apellidos:
 >
-> Fulano Mengano Zutano
+> Xavi Prats Castillo
 
 ## Aviso Importante
 
@@ -242,9 +242,9 @@ funcionamiento de su función.
 > - Quedamos a las $\textbf{\color{red}23 en punto}$
 
 
-#### Entrega
+## Entrega
 
-##### Ficheros `alumno.py` y `horas.py`
+### Ficheros `alumno.py` y `horas.py`
 
 - Ambos ficheros deben incluir una cadena de documentación con el nombre del alumno o alumnos
   y una descripción de su contenido.
@@ -252,19 +252,296 @@ funcionamiento de su función.
 - Se valorará lo pythónico de la solución; en concreto, su claridad y sencillez, y el
   uso de los estándares marcados por PEP-ocho.
 
-##### Ejecución de los tests unitarios de `alumno.py`
+### Ejecución de los tests unitarios de `alumno.py`
 
 Inserte a continuación una captura de pantalla que muestre el resultado de ejecutar el
 fichero `alumno.py` con la opción *verbosa*, de manera que se muestre el
 resultado de la ejecución de los tests unitarios.
 
-##### Código desarrollado
+![Ejecución tests unitarios](captura_tests.png)
 
-Inserte a continuación los códigos fuente desarrollados en esta tarea, usando los
-comandos necesarios para que se realice el realce sintáctico en Python del mismo (no
-vale insertar una imagen o una captura de pantalla, debe hacerse en formato *markdown*).
+### Código desarrollado
 
-##### Subida del resultado al repositorio GitHub y *pull-request*
+#### `alumno.py`
+
+```python
+"""
+Autor: Xavi Prats Castillo
+
+Módulo que define la clase Alumno y la función leeAlumnos para gestionar
+las notas de los alumnos leídas desde un fichero de texto.
+"""
+
+import re
+
+
+class Alumno:
+    """
+    Clase usada para el tratamiento de las notas de los alumnos. Cada uno
+    incluye los atributos siguientes:
+
+    numIden:   Número de identificación. Es un número entero que, en caso
+               de no indicarse, toma el valor por defecto 'numIden=-1'.
+    nombre:    Nombre completo del alumno.
+    notas:     Lista de números reales con las distintas notas de cada alumno.
+    """
+
+    def __init__(self, nombre, numIden=-1, notas=[]):
+        self.numIden = numIden
+        self.nombre = nombre
+        self.notas = [nota for nota in notas]
+
+    def __add__(self, other):
+        """
+        Devuelve un nuevo objeto 'Alumno' con una lista de notas ampliada con
+        el valor pasado como argumento. De este modo, añadir una nota a un
+        Alumno se realiza con la orden 'alumno += nota'.
+        """
+        return Alumno(self.nombre, self.numIden, self.notas + [other])
+
+    def media(self):
+        """
+        Devuelve la nota media del alumno.
+        """
+        return sum(self.notas) / len(self.notas) if self.notas else 0
+
+    def __repr__(self):
+        """
+        Devuelve la representación 'oficial' del alumno. A partir de copiar
+        y pegar la cadena obtenida es posible crear un nuevo Alumno idéntico.
+        """
+        return f'Alumno("{self.nombre}", {self.numIden!r}, {self.notas!r})'
+
+    def __str__(self):
+        """
+        Devuelve la representación 'bonita' del alumno. Muestra en tres
+        columnas separadas por tabulador el número de identificación, el nombre
+        completo y la nota media del alumno con un decimal.
+        """
+        return f'{self.numIden}\t{self.nombre}\t{self.media():.1f}'
+
+
+def leeAlumnos(ficAlum):
+    """
+    Lee un fichero de texto con los datos de todos los alumnos y devuelve
+    un diccionario donde la clave es el nombre de cada alumno y el valor es
+    el objeto Alumno correspondiente.
+
+    >>> alumnos = leeAlumnos('alumnos.txt')
+    >>> for alumno in alumnos:  # doctest: +NORMALIZE_WHITESPACE
+    ...     print(alumnos[alumno])
+    ...
+    171     Blanca Agirrebarrenetse 9.5
+    23      Carles Balcells de Lara 4.9
+    68      David Garcia Fuster     7.0
+    """
+
+    # Patrón para analizar cada línea: ID numérico, nombre con posibles espacios
+    # y apellidos, y las notas al final. El .+? (lazy) evita que el nombre
+    # absorba también los números de las notas.
+    patron_linea = re.compile(r'^\s*(\d+)\s+(.+?)\s+([\d.\s]+)\s*$')
+
+    resultado = {}
+
+    try:
+        with open(ficAlum, 'r', encoding='utf-8') as fichero:
+            for linea in fichero:
+
+                # Ignoramos las líneas vacías o que solo contienen espacios
+                if not linea.strip():
+                    continue
+
+                coincidencia = patron_linea.match(linea)
+                if coincidencia:
+                    numIden = int(coincidencia.group(1))
+                    nombre = coincidencia.group(2).strip()
+
+                    # Extraemos todos los números (enteros o decimales) de la parte de notas
+                    parte_notas = coincidencia.group(3)
+                    notas = [float(n) for n in re.findall(r'\d+(?:\.\d+)?', parte_notas)]
+
+                    resultado[nombre] = Alumno(nombre, numIden, notas)
+
+    except FileNotFoundError:
+        raise FileNotFoundError(f"No se ha encontrado el fichero '{ficAlum}'")
+
+    return resultado
+
+
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod(optionflags=doctest.NORMALIZE_WHITESPACE, verbose=True)
+```
+
+#### `horas.py`
+
+```python
+"""
+Autor: Xavi Prats Castillo
+
+Módulo para la normalización de expresiones horarias en un texto.
+Convierte cualquier expresión horaria válida al formato estándar HH:MM.
+"""
+
+import re
+
+
+def normalizaHoras(ficText, ficNorm):
+    """
+    Lee el fichero ficText, detecta todas las expresiones horarias válidas
+    y las escribe normalizadas al formato HH:MM en el fichero ficNorm.
+    Las expresiones incorrectas se dejan tal cual.
+    """
+
+    # --- FUNCIONES AUXILIARES INTERNAS ---
+
+    def obtener_minutos(grupos):
+        """
+        Determina el valor numérico de los minutos a partir de los grupos capturados.
+        Gestiona tanto minutos numéricos (ej: 30 de '8h30m') como literales
+        (ej: 'y media', 'menos cuarto', 'en punto').
+        Devuelve None si el valor está fuera de rango.
+        """
+        # Minutos escritos en número detrás de la 'h' (ej: 10h45m)
+        if grupos['m_col'] is not None:
+            m = int(grupos['m_col'])
+            return m if m <= 59 else None
+
+        # Minutos expresados en palabras
+        texto_minutos = grupos['min_lit']
+        if texto_minutos:
+            texto_minutos = texto_minutos.lower()
+            if 'en punto'     in texto_minutos: return 0
+            if 'y cuarto'     in texto_minutos: return 15
+            if 'y media'      in texto_minutos: return 30
+            if 'menos cuarto' in texto_minutos: return 45  # La hora se resta 1 aparte
+
+        # Si no se indican minutos, se asume que es en punto
+        return 0
+
+    def convertir_a_24h(h_hablada, m, grupos):
+        """
+        Valida la hora dentro de la franja horaria indicada (mañana, tarde, etc.)
+        y la convierte al formato de 24 horas.
+        Devuelve None si la expresión es incorrecta (hora fuera de franja).
+        """
+        periodo = grupos['periode']
+        texto_minutos = grupos['min_lit']
+
+        if periodo or texto_minutos:
+            if not (1 <= h_hablada <= 12):
+                return None
+
+            if periodo:
+                periodo = periodo.lower()
+
+                if 'mañana'    in periodo and not (4  <= h_hablada <= 12): return None
+                if 'mediodía'  in periodo and not (h_hablada == 12 or 1 <= h_hablada <= 3): return None
+                if 'tarde'     in periodo and not (3  <= h_hablada <= 8):  return None
+                if 'noche'     in periodo and not (8  <= h_hablada <= 12 or 1 <= h_hablada <= 4): return None
+                if 'madrugada' in periodo and not (1  <= h_hablada <= 6):  return None
+
+                h_digital = h_hablada
+                if texto_minutos and 'menos cuarto' in texto_minutos.lower():
+                    h_digital -= 1
+
+                if 'mañana' in periodo or 'madrugada' in periodo:
+                    if h_digital == 12:
+                        h_digital = 0
+                elif 'mediodía' in periodo or 'tarde' in periodo:
+                    if h_digital != 12:
+                        h_digital += 12
+                elif 'noche' in periodo:
+                    if 8 <= h_digital <= 11:
+                        h_digital += 12
+                    elif h_digital == 12:
+                        h_digital = 0
+
+                return h_digital
+
+            else:
+                h_digital = h_hablada
+                if texto_minutos and 'menos cuarto' in texto_minutos.lower():
+                    h_digital -= 1
+
+                if h_digital == 12:
+                    h_digital = 0
+                elif h_digital < 0:
+                    h_digital = 11
+
+                return h_digital
+
+        else:
+            if not (0 <= h_hablada <= 23):
+                return None
+            return h_hablada
+
+    def gestionar_coincidencia(match):
+        """
+        Función llamada por re.sub() para cada expresión encontrada.
+        Decide si la expresión es válida y devuelve la forma normalizada
+        o el texto original si no es correcta.
+        """
+        texto_original = match.group(0)
+        grupos = match.groupdict()
+
+        # --- CASO 1: Formato digital con dos puntos (ej: 18:30, 8:05) ---
+        if grupos['h_std'] is not None:
+            h = int(grupos['h_std'])
+            m = int(grupos['m_std'])
+            if 0 <= h <= 23 and 0 <= m <= 59:
+                return f"{h:02d}:{m:02d}"
+            return texto_original
+
+        # --- CASO 2: Formato hablado (ej: 8h, 10h30m, 5 y media de la tarde) ---
+        if grupos['h_col'] is not None:
+            h_hablada = int(grupos['h_col'])
+            m = obtener_minutos(grupos)
+
+            if m is None:
+                return texto_original
+
+            h_final = convertir_a_24h(h_hablada, m, grupos)
+
+            if h_final is None:
+                return texto_original
+
+            return f"{h_final:02d}:{m:02d}"
+
+        return texto_original
+
+    # --- DEFINICIÓN DE LAS EXPRESIONES REGULARES ---
+
+    # Formato digital estándar: acepta 1 o 2 dígitos para la hora, siempre 2 para los minutos
+    regex_std = r'(?P<h_std>\d{1,2}):(?P<m_std>\d{2})\b'
+
+    # Formato hablado: hora seguida de 'h', literales de minutos o franja horaria
+    regex_col = (
+        r'\b(?P<h_col>\d{1,2})'
+        r'(?:'
+            r'(?:h(?P<m_col>\d{1,2})?m?\b)'
+            r'|(?:\s+(?P<min_lit>en punto|y cuarto|y media|menos cuarto)\b)'
+            r'|(?:\s+(?:de la|del)\s+(?P<periode>mañana|mediodía|tarde|noche|madrugada)\b)'
+        r')'
+    )
+
+    # Compilamos el patrón combinado (primero el digital, luego el hablado)
+    patron_completo = re.compile(f'{regex_std}|{regex_col}', re.IGNORECASE)
+
+    # --- LECTURA Y ESCRITURA ---
+    try:
+        with open(ficText, 'r', encoding='utf-8') as f_entrada, \
+             open(ficNorm, 'w', encoding='utf-8') as f_salida:
+
+            for linea in f_entrada:
+                linea_normalizada = patron_completo.sub(gestionar_coincidencia, linea)
+                f_salida.write(linea_normalizada)
+
+    except FileNotFoundError:
+        raise FileNotFoundError(f"No se ha podido abrir el fichero: '{ficText}'")
+```
+
+### Subida del resultado al repositorio GitHub y *pull-request*
 
 La entrega se formalizará mediante *pull request* al repositorio de la tarea.
 
@@ -272,7 +549,7 @@ El fichero `README.md` deberá respetar las reglas de los ficheros Markdown y
 visualizarse correctamente en el repositorio, incluyendo la imagen con la ejecución de
 los tests unitarios y el realce sintáctico del código fuente insertado.
 
-##### Y NADA MÁS
+### Y NADA MÁS
 
 Sólo se corregirá el contenido de este fichero `README.md` y los códigos fuente `alumno.py`
 y `horas.py`. No incluya otros ficheros con código fuente, notebooks de Jupyter o explicaciones
